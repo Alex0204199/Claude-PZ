@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(identify \"C:\\\\Users\\\\Alex\\\\Desktop\\\\PZ2\\\\icons.png\")",
+      "Bash(python3 -c \"from PIL import Image; img=Image.open\\(r''C:\\\\Users\\\\Alex\\\\Desktop\\\\PZ2\\\\icons.png''\\); print\\(f''{img.size[0]}x{img.size[1]}''\\)\")",
+      "Bash(python -c \"from PIL import Image; img=Image.open\\(r''C:\\\\Users\\\\Alex\\\\Desktop\\\\PZ2\\\\icons.png''\\); print\\(f''{img.size[0]}x{img.size[1]}''\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(grep -E \"^\\\\s+[a-z_]+:\\\\s*$\")",
+      "Bash(python3:*)",
+      "Bash(python -c \"from PIL import Image; img=Image.open\\(''inv.png''\\); print\\(f''{img.width}x{img.height}''\\)\")",
+      "Bash(grep -n \"case ''travel'':\" \"C:\\\\Users\\\\Alex\\\\Desktop\\\\PZ2\\\\index.html\")"
+    ]
+  }
+}
