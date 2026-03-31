@@ -6366,6 +6366,8 @@ function renderMapCanvas() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
+  // Reset transform to avoid accumulation from repeated scale() calls
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const w = canvas.width / dpr, h = canvas.height / dpr;
   const nodes = G.world.nodes;
   const z = mapState.zoom;
@@ -9854,59 +9856,57 @@ function renderEditorUI() {
   const poiTypes = '<option value="car_wreck">Авария</option><option value="bus_stop">Остановка</option><option value="parking">Парковка</option><option value="barricade">Баррикада</option><option value="gas_station">АЗС</option>';
   const regionTypes = WORLD_CONFIG.regions.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
 
+  const selectStyle = 'width:100%;background:#0a0f0a;color:var(--green);border:1px solid var(--border);padding:6px 4px;font-size:11px;font-family:monospace;min-height:32px';
+
   edDiv.innerHTML = `
-    <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:#0a0f0a;border-bottom:1px solid var(--border);flex-shrink:0">
-      <span style="color:var(--cyan);font-size:11px;letter-spacing:.1em;flex:1">🛠 ${editorState.fileName}</span>
-      <button class="act-btn" onclick="editorSave()" style="font-size:9px;padding:3px 8px">СОХР.</button>
-      <button class="act-btn" onclick="editorExport()" style="font-size:9px;padding:3px 8px">ЭКСПОРТ</button>
-      <button class="act-btn" onclick="editorImport()" style="font-size:9px;padding:3px 8px">ИМПОРТ</button>
-      <button class="act-btn" onclick="editorPlay()" style="font-size:9px;padding:3px 8px;border-color:var(--green);color:var(--green)">▸ ИГРАТЬ</button>
-      <button class="act-btn" onclick="closeMapEditor()" style="font-size:9px;padding:3px 8px;border-color:var(--red);color:var(--red)">✕</button>
+    <div style="display:flex;align-items:center;gap:4px;padding:4px 6px;background:#0a0f0a;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap">
+      <span style="color:var(--cyan);font-size:11px;letter-spacing:.08em;flex:1;min-width:80px">🛠 ${editorState.fileName}</span>
+      <button class="act-btn" onclick="editorSave()" style="font-size:10px;padding:6px 10px;min-height:34px">💾</button>
+      <button class="act-btn" onclick="editorExport()" style="font-size:10px;padding:6px 10px;min-height:34px">📤</button>
+      <button class="act-btn" onclick="editorImport()" style="font-size:10px;padding:6px 10px;min-height:34px">📥</button>
+      <button class="act-btn" onclick="editorPlay()" style="font-size:10px;padding:6px 10px;min-height:34px;border-color:var(--green);color:var(--green)">▸</button>
+      <button class="act-btn" onclick="closeMapEditor()" style="font-size:10px;padding:6px 10px;min-height:34px;border-color:var(--red);color:var(--red)">✕</button>
     </div>
-    <div style="display:flex;flex:1;min-height:0">
-      <div id="ed-tools" style="width:50px;background:#050a05;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:2px;padding:4px;overflow-y:auto">
-        ${tools.map(t => `<button class="act-btn" onclick="editorSetTool('${t.id}')" id="ed-tool-${t.id}" style="padding:4px 2px;font-size:14px;${editorState.tool===t.id?'border-color:var(--cyan);background:rgba(0,229,255,.1)':''}" title="${t.name}">${t.icon}</button>`).join('')}
+    <div id="ed-tools" style="display:flex;gap:2px;padding:4px 6px;background:#050a05;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto">
+      ${tools.map(t => `<button class="act-btn" onclick="editorSetTool('${t.id}')" id="ed-tool-${t.id}" style="padding:6px 8px;font-size:16px;min-height:38px;min-width:42px;flex-shrink:0;${editorState.tool===t.id?'border-color:var(--cyan);background:rgba(0,229,255,.1)':''}" title="${t.name}">${t.icon}<div style="font-size:8px;margin-top:1px">${t.name}</div></button>`).join('')}
+    </div>
+    <div id="ed-props-bar" style="display:flex;gap:4px;padding:4px 6px;background:#050a05;border-bottom:1px solid var(--border);flex-shrink:0;align-items:center;flex-wrap:wrap">
+      <div id="ed-type-select" style="flex:1;min-width:120px">
+        <select id="ed-subtype" onchange="editorState.selectedType=this.value" style="${selectStyle}">
+          ${buildingTypes}
+        </select>
       </div>
-      <div style="flex:1;position:relative;overflow:hidden">
-        <canvas id="ed-canvas" style="width:100%;height:100%"></canvas>
-        <div id="ed-hover-info" style="position:absolute;bottom:4px;left:4px;font-size:9px;color:var(--text-dim);pointer-events:none"></div>
+      <div id="ed-road-select" style="display:none;flex:1;min-width:120px">
+        <select id="ed-road-sub" onchange="editorState.subType=this.value" style="${selectStyle}">
+          ${roadTypes}
+        </select>
       </div>
-      <div id="ed-props" style="width:130px;background:#050a05;border-left:1px solid var(--border);padding:6px;font-size:10px;color:var(--text-dim);overflow-y:auto">
-        <div style="color:var(--cyan);font-size:9px;letter-spacing:.1em;margin-bottom:6px">СВОЙСТВА</div>
-        <div id="ed-type-select" style="margin-bottom:6px">
-          <select id="ed-subtype" onchange="editorState.selectedType=this.value" style="width:100%;background:#0a0f0a;color:var(--green);border:1px solid var(--border);padding:3px;font-size:9px;font-family:monospace">
-            ${buildingTypes}
-          </select>
-        </div>
-        <div id="ed-road-select" style="display:none;margin-bottom:6px">
-          <select id="ed-road-sub" onchange="editorState.subType=this.value" style="width:100%;background:#0a0f0a;color:var(--green);border:1px solid var(--border);padding:3px;font-size:9px;font-family:monospace">
-            ${roadTypes}
-          </select>
-        </div>
-        <div id="ed-nature-select" style="display:none;margin-bottom:6px">
-          <select id="ed-nature-sub" onchange="editorState.subType=this.value" style="width:100%;background:#0a0f0a;color:var(--green);border:1px solid var(--border);padding:3px;font-size:9px;font-family:monospace">
-            ${natureTypes}
-          </select>
-        </div>
-        <div id="ed-poi-select" style="display:none;margin-bottom:6px">
-          <select id="ed-poi-sub" onchange="editorState.subType=this.value" style="width:100%;background:#0a0f0a;color:var(--green);border:1px solid var(--border);padding:3px;font-size:9px;font-family:monospace">
-            ${poiTypes}
-          </select>
-        </div>
-        <div id="ed-elev-select" style="display:none;margin-bottom:6px">
-          <div style="color:var(--text);margin-bottom:3px">Высота: <span id="ed-elev-val">${editorState.brushElevation}</span></div>
-          <input type="range" min="0" max="3" value="${editorState.brushElevation}" oninput="editorState.brushElevation=+this.value;document.getElementById('ed-elev-val').textContent=this.value" style="width:100%">
-        </div>
-        <div id="ed-region-select" style="display:none;margin-bottom:6px">
-          <select id="ed-region-sub" onchange="editorState.brushRegion=this.value" style="width:100%;background:#0a0f0a;color:var(--green);border:1px solid var(--border);padding:3px;font-size:9px;font-family:monospace">
-            ${regionTypes}
-          </select>
-        </div>
-        <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:6px">
-          <div style="color:var(--text-dim);font-size:9px">Ячеек: <span id="ed-node-count">${Object.keys(editorState.nodes).length}</span></div>
-          <div style="color:var(--text-dim);font-size:9px;margin-top:2px">Зданий: <span id="ed-bldg-count">${Object.values(editorState.nodes).filter(n=>n.type==='building').length}</span></div>
-        </div>
+      <div id="ed-nature-select" style="display:none;flex:1;min-width:120px">
+        <select id="ed-nature-sub" onchange="editorState.subType=this.value" style="${selectStyle}">
+          ${natureTypes}
+        </select>
       </div>
+      <div id="ed-poi-select" style="display:none;flex:1;min-width:120px">
+        <select id="ed-poi-sub" onchange="editorState.subType=this.value" style="${selectStyle}">
+          ${poiTypes}
+        </select>
+      </div>
+      <div id="ed-elev-select" style="display:none;flex:1;min-width:120px;display:flex;align-items:center;gap:4px">
+        <span style="color:var(--text);font-size:10px;white-space:nowrap">Высота: <span id="ed-elev-val">${editorState.brushElevation}</span></span>
+        <input type="range" min="0" max="3" value="${editorState.brushElevation}" oninput="editorState.brushElevation=+this.value;document.getElementById('ed-elev-val').textContent=this.value" style="flex:1;min-width:60px">
+      </div>
+      <div id="ed-region-select" style="display:none;flex:1;min-width:120px">
+        <select id="ed-region-sub" onchange="editorState.brushRegion=this.value" style="${selectStyle}">
+          ${regionTypes}
+        </select>
+      </div>
+      <div style="font-size:9px;color:var(--text-dim);white-space:nowrap">
+        <span id="ed-node-count">${Object.keys(editorState.nodes).length}</span> яч. · <span id="ed-bldg-count">${Object.values(editorState.nodes).filter(n=>n.type==='building').length}</span> зд.
+      </div>
+    </div>
+    <div style="flex:1;position:relative;overflow:hidden;min-height:0">
+      <canvas id="ed-canvas" style="width:100%;height:100%;touch-action:none"></canvas>
+      <div id="ed-hover-info" style="position:absolute;bottom:6px;left:6px;font-size:10px;color:var(--text-dim);pointer-events:none;background:rgba(0,0,0,.7);padding:2px 6px;border-radius:3px"></div>
     </div>
   `;
 
@@ -9951,15 +9951,67 @@ function initEditorCanvas() {
   resize();
   window.addEventListener('resize', resize);
 
-  // Pan with drag
-  let dragging = false, dragX = 0, dragY = 0;
-  canvas.addEventListener('mousedown', e => { dragging = true; dragX = e.clientX; dragY = e.clientY; });
-  window.addEventListener('mousemove', e => {
+  // Pan with drag (mouse + touch)
+  let dragging = false, wasDragging = false, dragX = 0, dragY = 0;
+  let dragTotalDist = 0, lastTapTime = 0;
+
+  function edPointerDown(cx, cy) {
+    dragging = true; wasDragging = false; dragTotalDist = 0;
+    dragX = cx; dragY = cy;
+  }
+  function edPointerMove(cx, cy) {
     if (!dragging) return;
-    editorState.panX += (e.clientX - dragX); editorState.panY += (e.clientY - dragY);
-    dragX = e.clientX; dragY = e.clientY;
-  });
-  window.addEventListener('mouseup', () => { dragging = false; });
+    const dx = cx - dragX, dy = cy - dragY;
+    dragTotalDist += Math.abs(dx) + Math.abs(dy);
+    if (dragTotalDist > 8) wasDragging = true;
+    editorState.panX += dx; editorState.panY += dy;
+    dragX = cx; dragY = cy;
+  }
+  function edPointerUp() { dragging = false; }
+  function edTap(cx, cy) {
+    if (wasDragging) return;
+    const now = Date.now();
+    if (now - lastTapTime < 300) return; // prevent double-fire from touch+click
+    lastTapTime = now;
+    const rect = canvas.getBoundingClientRect();
+    const mx = cx - rect.left, my = cy - rect.top;
+    const cell = edScreenToGrid(mx, my, canvas);
+    if (cell.gx < 0 || cell.gx >= WORLD_CONFIG.gridW || cell.gy < 0 || cell.gy >= WORLD_CONFIG.gridH) return;
+    editorPlaceTool(cell.gx, cell.gy);
+  }
+
+  // Mouse events
+  canvas.addEventListener('mousedown', e => edPointerDown(e.clientX, e.clientY));
+  window.addEventListener('mousemove', e => edPointerMove(e.clientX, e.clientY));
+  window.addEventListener('mouseup', () => edPointerUp());
+  canvas.addEventListener('click', e => edTap(e.clientX, e.clientY));
+
+  // Touch events
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    edPointerDown(t.clientX, t.clientY);
+  }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    edPointerMove(t.clientX, t.clientY);
+    // Update hover info on touch
+    const rect = canvas.getBoundingClientRect();
+    const mx = t.clientX - rect.left, my = t.clientY - rect.top;
+    const cell = edScreenToGrid(mx, my, canvas);
+    editorState.hoverGX = cell.gx; editorState.hoverGY = cell.gy;
+    const info = document.getElementById('ed-hover-info');
+    const nid = `n_${cell.gx}_${cell.gy}`;
+    const node = editorState.nodes[nid];
+    if (info) info.textContent = `[${cell.gx}, ${cell.gy}]${node ? ' · ' + (node.name || node.type) : ' · пусто'}`;
+  }, { passive: false });
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    edPointerUp();
+    edTap(t.clientX, t.clientY);
+  }, { passive: false });
 
   // Zoom with wheel
   canvas.addEventListener('wheel', e => {
@@ -9967,7 +10019,7 @@ function initEditorCanvas() {
     editorState.zoom = Math.max(0.3, Math.min(4, editorState.zoom + (e.deltaY < 0 ? 0.15 : -0.15)));
   }, { passive: false });
 
-  // Hover — show cell coords
+  // Hover — show cell coords (mouse only)
   canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
@@ -9979,16 +10031,6 @@ function initEditorCanvas() {
     if (info) {
       info.textContent = `[${cell.gx}, ${cell.gy}]${node ? ' · ' + (node.name || node.type) : ' · пусто'}`;
     }
-  });
-
-  // Click — place/erase
-  canvas.addEventListener('click', e => {
-    if (dragging) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    const cell = edScreenToGrid(mx, my, canvas);
-    if (cell.gx < 0 || cell.gx >= WORLD_CONFIG.gridW || cell.gy < 0 || cell.gy >= WORLD_CONFIG.gridH) return;
-    editorPlaceTool(cell.gx, cell.gy);
   });
 
   // Render loop
@@ -10134,9 +10176,11 @@ function editorPlaceTool(gx, gy) {
   } else if (tool === 'building') {
     const bType = editorState.selectedType;
     const meta = BUILDING_META[bType] || {w:1,h:1};
+    const bldNum = Object.values(editorState.nodes).filter(n=>n.type==='building').length+1;
+    const bldName = (LOCATION_TEMPLATES[bType]?.name||bType)+' #'+bldNum;
     let bld = null;
-    try { if (G?.difficulty) bld = generateBuilding(bType, Object.keys(editorState.nodes).length); } catch(e) {}
-    if (!bld) bld = { id:'bld-ed-'+Date.now(), type:bType, name:(LOCATION_TEMPLATES[bType]?.name||bType)+' #'+(Object.values(editorState.nodes).filter(n=>n.type==='building').length+1), rooms:[], infest:1, condition:'intact' };
+    try { if (typeof generateBuilding === 'function' && G?.difficulty) bld = generateBuilding(bType, Object.keys(editorState.nodes).length); } catch(e) {}
+    if (!bld) bld = { id:'bld-ed-'+Date.now()+'-'+bldNum, type:bType, name:bldName, rooms:[{id:'room-0',name:'Комната',floorNum:0,roomType:'room',containers:[],enemies:[],searched:false}], infest:1, condition:'intact' };
     editorState.nodes[nid] = {
       id: nid, gx, gy, type: 'building', regionId: editorState.brushRegion,
       name: bld?.name || bType, building: bld, buildingW: meta.w, buildingH: meta.h,
