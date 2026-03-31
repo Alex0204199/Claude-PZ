@@ -6366,9 +6366,30 @@ function renderMapCanvas() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
-  // Reset transform to avoid accumulation from repeated scale() calls
+  // Reset ALL canvas state to prevent accumulation from errors or leaked state
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1.0;
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+  ctx.setLineDash([]);
+  ctx.lineCap = 'butt';
+  ctx.lineJoin = 'miter';
   const w = canvas.width / dpr, h = canvas.height / dpr;
+  try { _renderMapCanvasInner(ctx, dpr, w, h); } catch(e) { console.error('Map render error:', e); }
+  // Always reset state after render, even on error
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1.0;
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+  ctx.setLineDash([]);
+  updateMoveAnim();
+  if (document.getElementById('map-canvas')) {
+    if (mapState.animFrame) cancelAnimationFrame(mapState.animFrame);
+    mapState.animFrame=requestAnimationFrame(renderMapCanvas);
+  }
+}
+function _renderMapCanvasInner(ctx, dpr, w, h) {
   const nodes = G.world.nodes;
   const z = mapState.zoom;
 
@@ -6725,7 +6746,7 @@ function renderMapCanvas() {
       ctx.strokeStyle = edgeCol;
       ctx.lineWidth = isHere || isSelected ? 1.5 : 0.7;
       if (isHere || isSelected) {
-        ctx.shadowColor = isHere ? '#00FF41' : '#00BCD4'; ctx.shadowBlur = 10;
+        ctx.shadowColor = isHere ? '#00FF41' : '#00BCD4'; ctx.shadowBlur = Math.min(6, 10 / dpr);
       }
       // Roof top outline
       ctx.beginPath();
@@ -7290,7 +7311,7 @@ function renderMapCanvas() {
 
       // "БАЗА" marker
       if (isHome) {
-        ctx.fillStyle='#00FF41'; ctx.shadowColor='#00FF41'; ctx.shadowBlur=6;
+        ctx.fillStyle='#00FF41'; ctx.shadowColor='#00FF41'; ctx.shadowBlur=Math.min(4, 6/dpr);
         ctx.font=`bold ${Math.max(8,10*z)}px monospace`; ctx.textAlign='center';
         ctx.fillText('БАЗА', (N.x+S.x)/2, N.y-bldH-5); ctx.shadowBlur=0;
       }
@@ -7339,28 +7360,28 @@ function renderMapCanvas() {
     ctx.strokeStyle = 'rgba(0,188,212,0.65)';
     ctx.lineWidth = Math.max(1.5, 2*z);
     ctx.setLineDash([4,4]); ctx.lineCap='round';
-    ctx.shadowColor='#00BCD4'; ctx.shadowBlur=3;
+    ctx.shadowColor='#00BCD4'; ctx.shadowBlur=Math.min(3, 3/dpr);
     ctx.beginPath();
     mapState.previewPath.forEach((pid,i) => {
       const pn=nodes[pid]; if (!pn) return;
       const px=isoX(pn.gx+0.5,pn.gy+0.5), py=isoY(pn.gx+0.5,pn.gy+0.5);
       i===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
     });
-    ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur=0;
+    ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur=0; ctx.shadowColor='transparent';
   }
 
   // ── Active route (solid cyan) ──
   if (G.world.currentRoute?.path.length > 1) {
     const route = G.world.currentRoute;
     ctx.strokeStyle='#00E5FF'; ctx.lineWidth=Math.max(2,2.5*z);
-    ctx.lineCap='round'; ctx.shadowColor='#00E5FF'; ctx.shadowBlur=5;
+    ctx.lineCap='round'; ctx.shadowColor='#00E5FF'; ctx.shadowBlur=Math.min(3, 5/dpr);
     ctx.beginPath();
     for (let i=route.currentStep; i<route.path.length; i++) {
       const pn=nodes[route.path[i]]; if (!pn) continue;
       const px=isoX(pn.gx+0.5,pn.gy+0.5), py=isoY(pn.gx+0.5,pn.gy+0.5);
       i===route.currentStep ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
     }
-    ctx.stroke(); ctx.shadowBlur=0;
+    ctx.stroke(); ctx.shadowBlur=0; ctx.shadowColor='transparent';
   }
 
   // ── Labels (with overlap avoidance) ──
@@ -7403,20 +7424,15 @@ function renderMapCanvas() {
     // Bobbing animation
     const bob = Math.sin(Date.now()*0.004)*2;
     markerY += bob - markerSz*0.5;
-    // Glow
-    ctx.shadowColor='#00FF41'; ctx.shadowBlur=10;
+    // Glow (reduced for high-DPR mobile)
+    ctx.shadowColor='#00FF41'; ctx.shadowBlur=Math.min(6, 10/dpr);
     const pulse = Math.sin(Date.now()*0.005)*0.3+0.6;
     ctx.globalAlpha = pulse;
     drawMapIcon('player', pSX, markerY, markerSz);
     ctx.globalAlpha = 1.0;
-    ctx.shadowBlur=0;
+    ctx.shadowBlur=0; ctx.shadowColor='transparent';
   }
 
-  updateMoveAnim();
-  if (document.getElementById('map-canvas')) {
-    if (mapState.animFrame) cancelAnimationFrame(mapState.animFrame);
-    mapState.animFrame=requestAnimationFrame(renderMapCanvas);
-  }
 }
 
 function mapTravelTo(ri, li) {
